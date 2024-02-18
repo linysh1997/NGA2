@@ -1,5 +1,5 @@
 !> Various definitions and tools for initializing NGA2 config
-!> Modified from NGA2/examples/ligament/src/ligament_class.f90 for using overset mesh in droplet simulations
+!> Modified from NGA2/examples/coupler_tester/src/geometry.f90 for using overset mesh in droplet simulations
 module geometry
    use mpi_f08,      only: MPI_Group
    use config_class, only: config
@@ -59,9 +59,9 @@ contains
             real(WP) :: Lx,Ly,Lz
             real(WP), dimension(:), allocatable :: x,y,z
             ! Read in grid definition
-            call param_read('Gas Phase Lx',Lx); call param_read('nx',nx); allocate(x(nx+1))
-            call param_read('Gas Phase Ly',Ly); call param_read('ny',ny); allocate(y(ny+1))
-            call param_read('Gas Phase Lz',Lz); call param_read('nz',nz); allocate(z(nz+1))
+            call param_read('Gas Phase Lx',Lx); call param_read('Gas Phase nx',nx); allocate(x(nx+1))
+            call param_read('Gas Phase Ly',Ly); call param_read('Gas Phase ny',ny); allocate(y(ny+1))
+            call param_read('Gas Phase Lz',Lz); call param_read('Gas Phase nz',nz); allocate(z(nz+1))
             ! Create simple rectilinear grid
             do i=1,nx+1
                x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.25_WP*Lx
@@ -78,7 +78,7 @@ contains
             cfg_g=config(grp=grp_g,decomp=partition_g,grid=grid)
             ! Do not place walls
             cfg_g%VF=1.0_WP
-         end block create_grid
+         end block create_grid_g
       end if
       
       ! Create liquid phase grid from input params
@@ -89,20 +89,20 @@ contains
             integer :: i,j,k,nx,ny,nz
             real(WP) :: Lx,Ly,Lz
             real(WP), dimension(:), allocatable :: x,y,z
+            real(WP), dimension(3) :: center,radii
             ! Read in grid definition
             ! call param_read('Liquid Phase Lx',Lx); 
-            call param_read('nx',nx); allocate(x(nx+1))
+            call param_read('Liquid Phase nx',nx); allocate(x(nx+1))
             ! call param_read('Liquid Phase Ly',Ly); 
-            call param_read('ny',ny); allocate(y(ny+1))
+            call param_read('Liquid Phase ny',ny); allocate(y(ny+1))
             ! call param_read('Liquid Phase Lz',Lz); 
-            call param_read('nz',nz); allocate(z(nz+1))
+            call param_read('Liquid Phase nz',nz); allocate(z(nz+1))
             ! Create simple rectilinear grid
             call param_read('Droplet center',center)
             call param_read('Droplet radii',radii)
             Lx=2.4*radii(1)
             Ly=2.4*radii(2)
             Lz=2.4*radii(3)
-            real(WP), dimension(3) :: center,radii
             do i=1,nx+1
                x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.5_WP*Lx+center(1)
             end do
@@ -118,7 +118,7 @@ contains
             cfg_l=config(grp=grp_l,decomp=partition_l,grid=grid)
             ! Do not place walls
             cfg_l%VF=1.0_WP   
-         end block create_grid
+         end block create_grid_l
       end if
       
       

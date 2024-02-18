@@ -2,7 +2,8 @@
 module simulation
    use string,            only: str_medium
    use precision,         only: WP
-   use geometry,          only: cfg
+   use geometry,          only: cfg_g,grp_g,isInGrp_g
+   use geometry,          only: cfg_l,grp_l,isInGrp_l
    use hypre_str_class,   only: hypre_str
    use ddadi_class,       only: ddadi
    use tpns_class,        only: tpns
@@ -17,6 +18,7 @@ module simulation
    use event_class,       only: event
    use datafile_class,    only: datafile
    use monitor_class,     only: monitor
+   use coupler_class,     only: coupler
    implicit none
    private
    
@@ -40,12 +42,15 @@ module simulation
    !> Ensight postprocessing
    type(surfmesh) :: smesh
    type(partmesh) :: pmesh
-   type(ensight)  :: ens_out
-   type(event)    :: ens_evt
+   type(ensight)  :: ens_out_g,ens_out_l
+   type(event)    :: ens_evt_g,ens_evt_l
    
    !> Simulation monitor file
    type(monitor) :: mfile,cflfile,sprayfile
    
+   !> Coupler
+   type(coupler) :: xcpl,ycpl,zcpl
+
    public :: simulation_init,simulation_run,simulation_final
    
    !> Private work arrays
@@ -146,19 +151,19 @@ contains
       end block restart_and_save
       
       
-      ! Allocate work arrays for cfg
-      allocate_work_arrays: block
-         allocate(resU  (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(resV  (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(resW  (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(Ui    (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(Vi    (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(Wi    (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(SR  (6,cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
-         allocate(sgsSTx(cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_)); sgsSTx=0.0_WP
-         allocate(sgsSTy(cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_)); sgsSTy=0.0_WP
-         allocate(sgsSTz(cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_)); sgsSTz=0.0_WP
-      end block allocate_work_arrays
+      ! ! Allocate work arrays for cfg
+      ! allocate_work_arrays: block
+      !    allocate(resU  (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(resV  (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(resW  (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(Ui    (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(Vi    (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(Wi    (cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(SR  (6,cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_))
+      !    allocate(sgsSTx(cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_)); sgsSTx=0.0_WP
+      !    allocate(sgsSTy(cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_)); sgsSTy=0.0_WP
+      !    allocate(sgsSTz(cfg%imino_:cfg%imaxo_,cfg%jmino_:cfg%jmaxo_,cfg%kmino_:cfg%kmaxo_)); sgsSTz=0.0_WP
+      ! end block allocate_work_arrays
       
       
       ! Initialize time tracker
@@ -409,25 +414,139 @@ contains
          end do
       end block create_pmesh
       
+      ! Initialize couplers from droplet to the flow
+      create_coupler: block
+         use parallel, only: group
+         xcpl=coupler(src_grp=grp_g,dst_grp=grp_l,name='gas2drop')
+         ycpl=coupler(src_grp=grp_g,dst_grp=grp_l,name='gas2drop')
+         zcpl=coupler(src_grp=grp_g,dst_grp=grp_l,name='gas2drop')
+         if (isInGrp_g) then
+            call xcpl%set_src(cfg_g,'x')
+            call ycpl%set_src(cfg_g,'y')
+            call zcpl%set_src(cfg_g,'z')
+         else if (isInGrp_l) then
+            call xcpl%set_dst(cfg_l,'x')
+            call ycpl%set_dst(cfg_l,'y')
+            call zcpl%set_dst(cfg_l,'z')
+         end if
+         call xcpl%initialize()
+         call ycpl%initialize()
+         call zcpl%initialize()
+      end block create_coupler      
+     
+      if (isInGrp_g) then
+
+         create_field_g: block
+            integer :: i,j,k
+            ! Allocate array
+            allocate(resU  (cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(resV  (cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(resW  (cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(Ui    (cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(Vi    (cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(Wi    (cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(SR  (6,cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_))
+            allocate(sgsSTx(cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_)); sgsSTx=0.0_WP
+            allocate(sgsSTy(cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_)); sgsSTy=0.0_WP
+            allocate(sgsSTz(cfg_g%imino_:cfg_g%imaxo_,cfg_g%jmino_:cfg_g%jmaxo_,cfg_g%kmino_:cfg_g%kmaxo_)); sgsSTz=0.0_WP
+         end block create_field_g
+
+         ! Add Ensight output
+         create_ensight_g: block
+            ! Create Ensight output from cfg
+            ens_out_g=ensight(cfg_g,'grid_g')
+            ! Create event for Ensight output
+            ens_evt_g=event(time,'Ensight output')
+            call param_read('Ensight output period gas',ens_evt_g%tper)
+            ! Add variables to output
+            call ens_out_g%add_vector('velocity',Ui,Vi,Wi)
+            call ens_out_g%add_scalar('VOF',vf%VF)
+            call ens_out_g%add_scalar('curv',vf%curv)
+            call ens_out_g%add_vector('sgsST',sgsSTx,sgsSTy,sgsSTz)
+            call ens_out_g%add_scalar('filmThickness',cc%film_thickness)
+            call ens_out_g%add_surface('vofplic',smesh)
+            call ens_out_g%add_particle('spray',pmesh)
+            ! Output to ensight
+            if (ens_evt_g%occurs()) call ens_out_g%write_data(time%t)
+         end block create_ensight_g
+
+      end if
+
+      if (isInGrp_l) then
+
+         create_field_l: block
+         integer :: i,j,k
+         ! Allocate array
+         allocate(resU  (cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(resV  (cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(resW  (cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(Ui    (cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(Vi    (cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(Wi    (cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(SR  (6,cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_))
+         allocate(sgsSTx(cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_)); sgsSTx=0.0_WP
+         allocate(sgsSTy(cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_)); sgsSTy=0.0_WP
+         allocate(sgsSTz(cfg_l%imino_:cfg_l%imaxo_,cfg_l%jmino_:cfg_l%jmaxo_,cfg_l%kmino_:cfg_l%kmaxo_)); sgsSTz=0.0_WP
+         end block create_field_l
+
+      end if
+
+      ! Both groups work on the coupling
+      coupling_step: block
+         if (isInGrp_g) then
+            call xcpl%push(resU); call xcpl%push(resV); call xcpl%push(resW); call xcpl%push(Ui); call xcpl%push(Vi)
+            call xcpl%push(Wi); call xcpl%push(SR); call xcpl%push(sgsSTx); call xcpl%push(sgsSTy); call xcpl%push(sgsSTz)
+         end if
+         call xcpl%transfer(); call ycpl%transfer(); call zcpl%transfer();
+         if (isInGrp_l) then
+            call xcpl%pull(resU); call xcpl%pull(resV); call xcpl%pull(resW); call xcpl%pull(Ui); call xcpl%pull(Vi)
+            call xcpl%pull(Wi); call xcpl%pull(SR); call xcpl%pull(sgsSTx); call xcpl%pull(sgsSTy); call xcpl%pull(sgsSTz)         end if
+         end if
+      end block coupling_step
+
+      if (isInGrp_l) then
+         ! Add Ensight output
+         create_ensight_l: block
+            ! Create Ensight output from cfg
+            ens_out_l=ensight(cfg_l,'grid_l')
+            ! ! Create event for Ensight output
+            ! ens_evt_l=event(time,'Ensight output')
+            ! call param_read('Ensight output period liquid',ens_evt_l%tper)
+            ! Add variables to output
+            call ens_out_l%add_vector('velocity',Ui,Vi,Wi)
+            call ens_out_l%add_scalar('VOF',vf%VF)
+            call ens_out_l%add_scalar('curv',vf%curv)
+            call ens_out_l%add_vector('sgsST',sgsSTx,sgsSTy,sgsSTz)
+            call ens_out_l%add_scalar('filmThickness',cc%film_thickness)
+            call ens_out_l%add_surface('vofplic',smesh)
+            call ens_out_l%add_particle('spray',pmesh)
+            ! Output to ensight
+            ! if (ens_evt_l%occurs()) 
+            call ens_out_l%write_data(time%t)
+         end block create_ensight_l
+      end if
+
+
+
       
-      ! Add Ensight output
-      create_ensight: block
-         ! Create Ensight output from cfg
-         ens_out=ensight(cfg,'drop_breakup')
-         ! Create event for Ensight output
-         ens_evt=event(time,'Ensight output')
-         call param_read('Ensight output period',ens_evt%tper)
-         ! Add variables to output
-         call ens_out%add_vector('velocity',Ui,Vi,Wi)
-         call ens_out%add_scalar('VOF',vf%VF)
-         call ens_out%add_scalar('curv',vf%curv)
-         call ens_out%add_vector('sgsST',sgsSTx,sgsSTy,sgsSTz)
-         call ens_out%add_scalar('filmThickness',cc%film_thickness)
-         call ens_out%add_surface('vofplic',smesh)
-         call ens_out%add_particle('spray',pmesh)
-         ! Output to ensight
-         if (ens_evt%occurs()) call ens_out%write_data(time%t)
-      end block create_ensight
+      ! ! Add Ensight output
+      ! create_ensight: block
+      !    ! Create Ensight output from cfg
+      !    ens_out=ensight(cfg,'drop_breakup')
+      !    ! Create event for Ensight output
+      !    ens_evt=event(time,'Ensight output')
+      !    call param_read('Ensight output period',ens_evt%tper)
+      !    ! Add variables to output
+      !    call ens_out%add_vector('velocity',Ui,Vi,Wi)
+      !    call ens_out%add_scalar('VOF',vf%VF)
+      !    call ens_out%add_scalar('curv',vf%curv)
+      !    call ens_out%add_vector('sgsST',sgsSTx,sgsSTy,sgsSTz)
+      !    call ens_out%add_scalar('filmThickness',cc%film_thickness)
+      !    call ens_out%add_surface('vofplic',smesh)
+      !    call ens_out%add_particle('spray',pmesh)
+      !    ! Output to ensight
+      !    if (ens_evt%occurs()) call ens_out%write_data(time%t)
+      ! end block create_ensight
       
       
       ! Create a monitor file
