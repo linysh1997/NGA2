@@ -1,5 +1,5 @@
-!> Definition for a ligament atomization class
-module ligament_class
+!> Definition for a droplet atomization class
+module droplet_class
    use precision,         only: WP
    use config_class,      only: config
    use iterator_class,    only: iterator
@@ -17,10 +17,10 @@ module ligament_class
    implicit none
    private
    
-   public :: ligament
+   public :: droplet
    
-   !> Ligament object
-   type :: ligament
+   !> droplet object
+   type :: droplet
       
       !> Config
       type(config) :: cfg
@@ -57,7 +57,7 @@ module ligament_class
       procedure :: init                            !< Initialize nozzle simulation
       procedure :: step                            !< Advance nozzle simulation by one time step
       procedure :: final                           !< Finalize nozzle simulation
-   end type ligament
+   end type droplet
    
    
    !> Hardcode size of buffer layer for VOF removal
@@ -67,33 +67,34 @@ module ligament_class
 contains
    
    
+   ! !> Function that defines a level set function for a lpdrop
+   ! function levelset_lpdrop(xyz,t) result(G)
+   !    implicit none
+   !    real(WP), dimension(3),intent(in) :: xyz
+   !    real(WP), intent(in) :: t
+   !    real(WP) :: G
+   !    G=0.5_WP-sqrt(xyz(1)**2+xyz(2)**2+xyz(3)**2)
+   ! end function levelset_lpdrop
+
+
    !> Function that defines a level set function for a droplet
    function levelset_droplet(xyz,t) result(G)
       implicit none
       real(WP), dimension(3),intent(in) :: xyz
       real(WP), intent(in) :: t
       real(WP) :: G
-      G=0.5_WP-sqrt(xyz(1)**2+xyz(2)**2+xyz(3)**2)
+      ! change 0.5_WP to droplet radius
+      G=0.5_WP-sqrt(xyz(1)**2+xyz(2)**2+xyz(3)**3)
    end function levelset_droplet
-
-
-   !> Function that defines a level set function for a ligament
-   function levelset_ligament(xyz,t) result(G)
-      implicit none
-      real(WP), dimension(3),intent(in) :: xyz
-      real(WP), intent(in) :: t
-      real(WP) :: G
-      G=0.5_WP-sqrt(xyz(1)**2+xyz(2)**2)
-   end function levelset_ligament
    
    
-   !> Initialization of ligament simulation
+   !> Initialization of droplet simulation
    subroutine init(this)
       implicit none
-      class(ligament), intent(inout) :: this
+      class(droplet), intent(inout) :: this
       
       
-      ! Create the ligament mesh
+      ! Create the droplet mesh
       create_config: block
          use sgrid_class, only: cartesian,sgrid
          use param,       only: param_read
@@ -102,14 +103,14 @@ contains
          integer, dimension(3) :: partition
          type(sgrid) :: grid
          integer :: i,j,k,nx,ny,nz
-         real(WP) :: Lx,Ly,Lz,xlig
+         real(WP) :: Lx,Ly,Lz,xdrop
          ! Read in grid definition
-         call param_read('Lx',Lx); call param_read('nx',nx); allocate(x(nx+1)); call param_read('X ligament',xlig)
+         call param_read('Lx',Lx); call param_read('nx',nx); allocate(x(nx+1)); call param_read('X droplet',xdrop)
          call param_read('Ly',Ly); call param_read('ny',ny); allocate(y(ny+1))
          call param_read('Lz',Lz); call param_read('nz',nz); allocate(z(nz+1))
          ! Create simple rectilinear grid
          do i=1,nx+1
-            x(i)=real(i-1,WP)/real(nx,WP)*Lx-xlig
+            x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.25_WP*Lx ! xdrop
          end do
          do j=1,ny+1
             y(j)=real(j-1,WP)/real(ny,WP)*Ly-0.5_WP*Ly
@@ -118,7 +119,7 @@ contains
             z(k)=real(k-1,WP)/real(nz,WP)*Lz-0.5_WP*Lz
          end do
          ! General serial grid object
-         grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='Ligament')
+         grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='droplet')
          ! Read in partition
          call param_read('Partition',partition,short='p')
          ! Create partitioned grid without walls
@@ -161,7 +162,7 @@ contains
          integer, parameter :: amr_ref_lvl=4
          ! Create a VOF solver
          call this%vf%initialize(cfg=this%cfg,reconstruction_method=r2p,name='VOF')
-         ! Initialize to a ligament
+         ! Initialize to a droplet
          do k=this%vf%cfg%kmino_,this%vf%cfg%kmaxo_
             do j=this%vf%cfg%jmino_,this%vf%cfg%jmaxo_
                do i=this%vf%cfg%imino_,this%vf%cfg%imaxo_
@@ -176,7 +177,7 @@ contains
                   end do
                   ! Call adaptive refinement code to get volume and barycenters recursively
                   vol=0.0_WP; area=0.0_WP; v_cent=0.0_WP; a_cent=0.0_WP
-                  call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_ligament,0.0_WP,amr_ref_lvl)
+                  call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_droplet,0.0_WP,amr_ref_lvl)
                   this%vf%VF(i,j,k)=vol/this%vf%cfg%vol(i,j,k)
                   if (this%vf%VF(i,j,k).ge.VFlo.and.this%vf%VF(i,j,k).le.VFhi) then
                      this%vf%Lbary(:,i,j,k)=v_cent
@@ -309,7 +310,7 @@ contains
       create_ensight: block
          use param, only: param_read
          ! Create Ensight output from cfg
-         this%ens_out=ensight(cfg=this%cfg,name='ligament')
+         this%ens_out=ensight(cfg=this%cfg,name='droplet')
          ! Create event for Ensight output
          this%ens_evt=event(time=this%time,name='Ensight output')
          call param_read('Ensight output period',this%ens_evt%tper)
@@ -374,7 +375,7 @@ contains
    subroutine step(this)
       use tpns_class, only: arithmetic_visc,harmonic_visc
       implicit none
-      class(ligament), intent(inout) :: this
+      class(droplet), intent(inout) :: this
       
       ! Increment time
       call this%fs%get_cfl(this%time%dt,this%time%cfl)
@@ -516,7 +517,7 @@ contains
    !> Finalize nozzle simulation
    subroutine final(this)
       implicit none
-      class(ligament), intent(inout) :: this
+      class(droplet), intent(inout) :: this
       
       ! Deallocate work arrays
       deallocate(this%resU,this%resV,this%resW,this%Ui,this%Vi,this%Wi)
@@ -557,4 +558,4 @@ contains
    end function vof_removal_layer_locator
    
    
-end module ligament_class
+end module droplet_class

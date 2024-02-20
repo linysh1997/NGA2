@@ -1,18 +1,13 @@
 # Parallelization
-# Partition : 2 4 4
-Gas Phase Partition : 8 4 4
-Liquid Phase Partition : 2 2 2
+Partition : 2 4 4
 
 # Mesh definition
-Gas Phase Lx :  10
-Gas Phase Ly :  5
-Gas Phase Lz :  5
-Gas Phase nx :  64
-Gas Phase ny :  32
-Gas Phase nz :  32
-Liquid Phase nx : 8
-Liquid Phase ny : 8
-Liquid Phase nz : 8
+Lx :  10
+Ly :  5
+Lz :  5
+nx :  128
+ny :  64
+nz :  64
 
 # Case definition
 Gas velocity :   1
@@ -44,8 +39,7 @@ Implicit tolerance : 1e-6
 Implicit iteration : 100
 
 # Ensight ouput
-Ensight output period gas: 1
-Ensight output period liquid: 1
+Ensight output period : 1
 
 # Restart and save
 Restart output period : 100
