@@ -754,7 +754,7 @@ contains
          
       end do
       
-   end subroutine step(this)
+   end subroutine step
    
    
    !> Transfer vf to drops
@@ -923,6 +923,7 @@ contains
    !> Finalize the NGA2 simulation
    subroutine final(this)
       implicit none
+      class(droplet), intent(inout) :: this
       
       ! Get rid of all objects - need destructors
       ! monitor
@@ -936,4 +937,4 @@ contains
    end subroutine final
    
    
-end module simulation
+end module droplet_class
