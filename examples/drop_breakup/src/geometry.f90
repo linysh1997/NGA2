@@ -41,9 +41,9 @@ contains
       isInGrp=.false.; if (rank.le.product(partition)-1) isInGrp=.true.
       
       ! Create an MPI group along with logical for the second grid on the highest ranks
-      grange(:,1)=[nproc-product(partition_l),nproc-1,1]
-      call MPI_Group_range_incl(group,1,grange,grp_l,ierr)
-      isInGrp_l=.false.; if (rank.ge.nproc-product(partition_l)) isInGrp_l=.true.
+      grange(:,1)=[nproc-product(partition),nproc-1,1]
+      call MPI_Group_range_incl(group,1,grange,grp,ierr)
+      isInGrp=.false.; if (rank.ge.nproc-product(partition)) isInGrp=.true.
       
       ! Create gas phase grid from input params
       if (isInGrp) then

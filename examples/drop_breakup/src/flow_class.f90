@@ -246,7 +246,7 @@ contains
                   end do
                   ! Call adaptive refinement code to get volume and barycenters recursively
                   vol=0.0_WP; area=0.0_WP; v_cent=0.0_WP; a_cent=0.0_WP
-                  call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_drop,0.0_WP,amr_ref_lvl)
+                  ! call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_drop,0.0_WP,amr_ref_lvl)
                   this%vf%VF(i,j,k)=vol/this%vf%cfg%vol(i,j,k)
                   if (this%vf%VF(i,j,k).ge.VFlo.and.this%vf%VF(i,j,k).le.VFhi) then
                      this%vf%Lbary(:,i,j,k)=v_cent
@@ -346,7 +346,7 @@ contains
          end if
          ! Apply Dirichlet at inflow
          call param_read('Gas velocity',Uin)
-         call fs%get_bcond('inflow',mybc)
+         call this%fs%get_bcond('inflow',mybc)
          do n=1,mybc%itr%no_
             i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
             this%fs%U(i,j,k)=Uin
@@ -651,25 +651,25 @@ contains
          call this%fs%get_div()
          
          ! Perform volume-fraction-to-droplet transfer
-         call transfer_vf_to_drops()
+         call transfer_vf_to_drops(this)
          
          ! Output to ensight
-         if (ens_evt%occurs()) then
+         if (this%ens_evt%occurs()) then
             ! Update surfmesh object
             update_smesh: block
                use irl_fortran_interface
                integer :: i,j,k,nplane,np
                ! Transfer polygons to smesh
-               call this%vf%update_surfmesh(smesh)
+               call this%vf%update_surfmesh(this%smesh)
                ! Also populate nplane variable
-               smesh%var(1,:)=1.0_WP
+               this%smesh%var(1,:)=1.0_WP
                np=0
                do k=this%vf%cfg%kmin_,this%vf%cfg%kmax_
                   do j=this%vf%cfg%jmin_,this%vf%cfg%jmax_
                      do i=this%vf%cfg%imin_,this%vf%cfg%imax_
                         do nplane=1,getNumberOfPlanes(this%vf%liquid_gas_interface(i,j,k))
                            if (getNumberOfVertices(this%vf%interface_polygon(nplane,i,j,k)).gt.0) then
-                              np=np+1; smesh%var(1,np)=real(getNumberOfPlanes(this%vf%liquid_gas_interface(i,j,k)),WP)
+                              np=np+1; this%smesh%var(1,np)=real(getNumberOfPlanes(this%vf%liquid_gas_interface(i,j,k)),WP)
                            end if
                         end do
                      end do
@@ -680,10 +680,10 @@ contains
             update_pmesh: block
                integer :: i
                ! Transfer particles to pmesh
-               call this%lp%update_partmesh(pmesh)
+               call this%lp%update_partmesh(this%pmesh)
                ! Also populate diameter variable
                do i=1,this%lp%np_
-                  pmesh%var(1,i)=this%lp%p(i)%d
+                  this%pmesh%var(1,i)=this%lp%p(i)%d
                end do
             end block update_pmesh
             ! Perform ensight output
@@ -745,8 +745,9 @@ contains
    
    
    !> Transfer vf to drops
-   subroutine transfer_vf_to_drops()
+   subroutine transfer_vf_to_drops(this)
       implicit none
+      class(flow), intent(inout) :: this
       
       ! Perform a first pass with simplest CCL
       call this%cc%build_lists(VF=this%vf%VF,U=this%fs%U,V=this%fs%V,W=this%fs%W)
@@ -880,7 +881,7 @@ contains
                this%lp%p(np)%acol =0.0_WP                                     !< Give zero collision force
                this%lp%p(np)%d   =(6.0_WP*Vl/pi)**(1.0_WP/3.0_WP)            !< Assign diameter based on remaining liquid volume
                this%lp%p(np)%pos =this%vf%Lbary(:,i,j,k)                          !< Place the drop at the liquid barycenter
-               this%lp%p(np)%vel =this%fs%cfg%get_velocity(pos=this%lp%p(np)%pos,i0=i,j0=j,k0=k,U=this%fs%U,V=this%fs%V,W=fs%W) !< Interpolate local cell velocity as drop velocity
+               this%lp%p(np)%vel =this%fs%cfg%get_velocity(pos=this%lp%p(np)%pos,i0=i,j0=j,k0=k,U=this%fs%U,V=this%fs%V,W=this%fs%W) !< Interpolate local cell velocity as drop velocity
                this%lp%p(np)%ind =this%lp%cfg%get_ijk_global(this%lp%p(np)%pos,[this%lp%cfg%imin,this%lp%cfg%jmin,this%lp%cfg%kmin]) !< Place the drop in the proper cell for the lp%cfg
                this%lp%p(np)%flag=0                                          !< Activate it
                ! Increment particle counter

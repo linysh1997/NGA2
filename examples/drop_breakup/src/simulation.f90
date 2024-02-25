@@ -17,6 +17,9 @@ module simulation
    use event_class,       only: event
    use datafile_class,    only: datafile
    use monitor_class,     only: monitor
+   use coupler_class,     only: coupler
+   use droplet_class,     only: droplet
+   use flow_class,        only: flow
    implicit none
    private
    
@@ -29,6 +32,7 @@ module simulation
    type(lpt),         public :: lp
    type(hypre_str),   public :: ps
 	type(ddadi),       public :: vs
+   type(coupler),     public :: xcpl,ycpl,zcpl
    
    !> Provide two datafiles and an event tracker for saving restarts
    type(event)    :: save_evt
@@ -45,7 +49,10 @@ module simulation
    
    !> Simulation monitor file
    type(monitor) :: mfile,cflfile,sprayfile
-   
+
+   type(droplet) :: drop
+   type(flow)    :: gas
+
    public :: simulation_init,simulation_run,simulation_final
    
    !> Private work arrays
@@ -108,6 +115,8 @@ contains
       use param, only: param_read
       implicit none
       
+      call drop%init()
+      call gas%init()
       
       ! Handle restart/saves here
       restart_and_save: block
@@ -409,6 +418,21 @@ contains
          end do
       end block create_pmesh
       
+      ! Initialize couplers from turb to atom
+      create_coupler: block
+         use parallel, only: group
+         xcpl=coupler(src_grp=group,dst_grp=group,name='flow2drop')
+         ycpl=coupler(src_grp=group,dst_grp=group,name='flow2drop')
+         zcpl=coupler(src_grp=group,dst_grp=group,name='flow2drop')
+         ! if (isInGas) then
+            call xcpl%set_src(gas%cfg,'x')
+            call ycpl%set_src(gas%cfg,'y')
+            call zcpl%set_src(gas%cfg,'z')
+         ! end if
+         call xcpl%set_dst(drop%cfg,'x'); call xcpl%initialize()
+         call ycpl%set_dst(drop%cfg,'y'); call ycpl%initialize()
+         call zcpl%set_dst(drop%cfg,'z'); call zcpl%initialize()
+      end block create_coupler
       
       ! Add Ensight output
       create_ensight: block
