@@ -172,9 +172,9 @@ contains
          integer :: i,j,k,nx,ny,nz
          real(WP) :: Lx,Ly,Lz,xdrop
          ! Read in grid definition
-         call param_read('Lx',Lx); call param_read('nx',nx); allocate(x(nx+1)); call param_read('X droplet',xdrop)
-         call param_read('Ly',Ly); call param_read('ny',ny); allocate(y(ny+1))
-         call param_read('Lz',Lz); call param_read('nz',nz); allocate(z(nz+1))
+         call param_read('Droplet Lx',Lx); call param_read('Droplet nx',nx); allocate(x(nx+1)); call param_read('X droplet',xdrop)
+         call param_read('Droplet Ly',Ly); call param_read('Droplet ny',ny); allocate(y(ny+1))
+         call param_read('Droplet Lz',Lz); call param_read('Droplet nz',nz); allocate(z(nz+1))
          ! Create simple rectilinear grid
          do i=1,nx+1
             x(i)=real(i-1,WP)/real(nx,WP)*Lx-xdrop
@@ -188,7 +188,7 @@ contains
          ! General serial grid object
          grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='Droplet')
          ! Read in partition
-         call param_read('Partition',partition,short='p')
+         call param_read('Droplet Domain Partition',partition,short='p')
          ! Create partitioned grid without walls
          this%cfg=config(grp=group,decomp=partition,grid=grid)
       end block create_config
@@ -761,7 +761,7 @@ contains
    !> Transfer vf to drops
    subroutine transfer_vf_to_drops(this)
       implicit none
-      class(droplet), intent(inout) :: this
+      class(droplet) :: this
       
       ! Perform a first pass with simplest CCL
       call this%cc%build_lists(VF=this%vf%VF,U=this%fs%U,V=this%fs%V,W=this%fs%W)

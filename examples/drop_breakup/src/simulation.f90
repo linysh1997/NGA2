@@ -24,7 +24,6 @@ contains
    
    !> Initialization of our simulation
    subroutine simulation_init
-      use mpi_f08, only: MPI_Group
       implicit none
       ! type(MPI_Group) :: flow_group
       
@@ -35,45 +34,8 @@ contains
       call drop%init()
 
       ! If restarting, the domains could be out of sync, so resync
-      ! time by forcing injector to be at same time as atomization
-      airflow%time%t=droplet%time%t  
-      
-      ! ! Create an MPI group using leftmost processors only
-      ! create_flow_group: block
-      !    use parallel, only: group,comm
-      !    use mpi_f08,  only: MPI_Group_incl
-      !    integer, dimension(:), allocatable :: ranks
-      !    integer, dimension(3) :: coord
-      !    integer :: n,ngrp,ierr,ny,nz
-      !    ngrp=drop%cfg%npy*drop%cfg%npz
-      !    allocate(ranks(ngrp))
-      !    ngrp=0
-      !    do nz=1,drop%cfg%npz
-      !       do ny=1,drop%cfg%npy
-      !          ngrp=ngrp+1
-      !          coord=[0,ny-1,nz-1]
-      !          call MPI_CART_RANK(drop%cfg%comm,coord,ranks(ngrp),ierr)
-      !       end do
-      !    end do
-      !    call MPI_Group_incl(group,ngrp,ranks,flow_group,ierr)
-      !    if (drop%cfg%iproc.eq.1) then
-      !       isInHITGrp=.true.
-      !    else
-      !       isInHITGrp=.false.
-      !    end if
-      ! end block create_flow_group
-      
-      ! ! Prepare HIT simulation
-      ! if (isInHITGrp) then
-      !    prepare_flow: block
-      !       real(WP) :: dt
-      !       ! Initialize HIT
-      !       call airflow%init(group=flow_group,xend=drop%cfg%x(drop%cfg%imin))
-      !       ! Run HIT until t/tau_eddy=20
-      !       dt=0.15_WP*airflow%cfg%min_meshsize/airflow%Urms_tgt !< Estimate maximum stable dt
-      !       do while (airflow%time%t.lt.20.0_WP*airflow%tau_tgt); call airflow%step(dt); end do
-      !    end block prepare_flow
-      ! end if
+      ! time by forcing airflow to be at same time as droplet atomization
+      airflow%time%t=drop%time%t  
       
       ! Initialize couplers from airflow to drop
       create_coupler: block

@@ -159,14 +159,14 @@ contains
          integer, dimension(3) :: partition
          type(sgrid) :: grid
          integer :: i,j,k,nx,ny,nz
-         real(WP) :: Lx,Ly,Lz,xdrop
+         real(WP) :: Lx,Ly,Lz
          ! Read in grid definition
-         call param_read('Lx',Lx); call param_read('nx',nx); allocate(x(nx+1)); call param_read('X droplet',xdrop)
-         call param_read('Ly',Ly); call param_read('ny',ny); allocate(y(ny+1))
-         call param_read('Lz',Lz); call param_read('nz',nz); allocate(z(nz+1))
+         call param_read('Domain Lx',Lx); call param_read('Domain nx',nx); allocate(x(nx+1))
+         call param_read('Domain Ly',Ly); call param_read('Domain ny',ny); allocate(y(ny+1))
+         call param_read('Domain Lz',Lz); call param_read('Domain nz',nz); allocate(z(nz+1))
          ! Create simple rectilinear grid
          do i=1,nx+1
-            x(i)=real(i-1,WP)/real(nx,WP)*Lx-xdrop
+            x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.5_WP*Lx
          end do
          do j=1,ny+1
             y(j)=real(j-1,WP)/real(ny,WP)*Ly-0.5_WP*Ly
@@ -177,7 +177,7 @@ contains
          ! General serial grid object
          grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='Flow')
          ! Read in partition
-         call param_read('Partition',partition,short='p')
+         call param_read('Whole Domain Partition',partition,short='p')
          ! Create partitioned grid without walls
          this%cfg=config(grp=group,decomp=partition,grid=grid)
       end block create_config
@@ -223,7 +223,7 @@ contains
          real(WP), dimension(3,8) :: cube_vertex
          real(WP), dimension(3) :: v_cent,a_cent
          real(WP) :: vol,area
-         integer, parameter :: amr_ref_lvl=4
+         ! integer, parameter :: amr_ref_lvl=4
          ! Create a VOF solver with LVIRA
          this%vf=vfs(cfg=this%cfg,reconstruction_method=lvira,name='VOF')
          ! Create a VOF solver with R2P
@@ -747,7 +747,7 @@ contains
    !> Transfer vf to drops
    subroutine transfer_vf_to_drops(this)
       implicit none
-      class(flow), intent(inout) :: this
+      class(flow) :: this
       
       ! Perform a first pass with simplest CCL
       call this%cc%build_lists(VF=this%vf%VF,U=this%fs%U,V=this%fs%V,W=this%fs%W)
