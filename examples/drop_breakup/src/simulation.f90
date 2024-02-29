@@ -8,13 +8,13 @@ module simulation
    private
    
    !> Flow simulation
-   type(flow) :: gas
+   type(flow) :: airflow
    logical :: isInHITGrp
    
    !> Droplet atomization simulation
    type(droplet) :: drop
    
-   !> Coupler from gas to drop
+   !> Coupler from airflow to drop
    type(coupler) :: xcpl,ycpl,zcpl
    
    public :: simulation_init,simulation_run,simulation_final
@@ -28,9 +28,15 @@ contains
       implicit none
       ! type(MPI_Group) :: flow_group
       
-      ! Initialize atomization simulation
+      ! Initialize air flow simulation
+      call airflow%init()
+
+      ! Initialize droplet atomization simulation
       call drop%init()
-      call gas%init()
+
+      ! If restarting, the domains could be out of sync, so resync
+      ! time by forcing injector to be at same time as atomization
+      airflow%time%t=droplet%time%t  
       
       ! ! Create an MPI group using leftmost processors only
       ! create_flow_group: block
@@ -62,22 +68,22 @@ contains
       !    prepare_flow: block
       !       real(WP) :: dt
       !       ! Initialize HIT
-      !       call gas%init(group=flow_group,xend=drop%cfg%x(drop%cfg%imin))
+      !       call airflow%init(group=flow_group,xend=drop%cfg%x(drop%cfg%imin))
       !       ! Run HIT until t/tau_eddy=20
-      !       dt=0.15_WP*gas%cfg%min_meshsize/gas%Urms_tgt !< Estimate maximum stable dt
-      !       do while (gas%time%t.lt.20.0_WP*gas%tau_tgt); call gas%step(dt); end do
+      !       dt=0.15_WP*airflow%cfg%min_meshsize/airflow%Urms_tgt !< Estimate maximum stable dt
+      !       do while (airflow%time%t.lt.20.0_WP*airflow%tau_tgt); call airflow%step(dt); end do
       !    end block prepare_flow
       ! end if
       
-      ! Initialize couplers from gas to drop
+      ! Initialize couplers from airflow to drop
       create_coupler: block
          use parallel, only: group
-         xcpl=coupler(src_grp=group,dst_grp=group,name='gas2drop')
-         ycpl=coupler(src_grp=group,dst_grp=group,name='gas2drop')
-         zcpl=coupler(src_grp=group,dst_grp=group,name='gas2drop')
-         call xcpl%set_src(gas%cfg,'x')
-         call ycpl%set_src(gas%cfg,'y')
-         call zcpl%set_src(gas%cfg,'z')
+         xcpl=coupler(src_grp=group,dst_grp=group,name='airflow2drop')
+         ycpl=coupler(src_grp=group,dst_grp=group,name='airflow2drop')
+         zcpl=coupler(src_grp=group,dst_grp=group,name='airflow2drop')
+         call xcpl%set_src(airflow%cfg,'x')
+         call ycpl%set_src(airflow%cfg,'y')
+         call zcpl%set_src(airflow%cfg,'z')
          call xcpl%set_dst(drop%cfg,'x'); call xcpl%initialize()
          call ycpl%set_dst(drop%cfg,'y'); call ycpl%initialize()
          call zcpl%set_dst(drop%cfg,'z'); call zcpl%initialize()
@@ -94,26 +100,30 @@ contains
       do while (.not.drop%time%done())
          ! Advance atomization simulation
          call drop%step()
-         call gas%step()
+         ! Advance airflow simulation until it's caught up
+         do while (airflow%time%t.le.drop%time%t)
+            call airflow%step()
+         end do
+         
          ! Finish transfer
-         pull_velocity: block
-            call xcpl%transfer(); call xcpl%pull(drop%resU)
-            call ycpl%transfer(); call ycpl%pull(drop%resV)
-            call zcpl%transfer(); call zcpl%pull(drop%resW)
-         end block pull_velocity
-         ! Apply time-dependent Dirichlet condition
-         apply_boundary_condition: block
+         ! Handle coupling between injector and atomization
+         coupling_a2d: block
             use tpns_class, only: bcond
-            type(bcond), pointer :: mybc
             integer :: n,i,j,k
+            type(bcond), pointer :: mybc
+            ! Exchange data using cplx/y/z couplers
+            call xcpl%push(airflow%fs%U); call xcpl%transfer(); call xcpl%pull(drop%resU)
+            call ycpl%push(airflow%fs%V); call ycpl%transfer(); call ycpl%pull(drop%resV)
+            call zcpl%push(airflow%fs%W); call zcpl%transfer(); call zcpl%pull(drop%resW)
+            ! Apply time-varying Dirichlet conditions
             call drop%fs%get_bcond('inflow',mybc)
             do n=1,mybc%itr%no_
                i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-               drop%fs%U(i  ,j,k)=1.0_WP+drop%resU(i  ,j,k)
-               drop%fs%V(i-1,j,k)=       drop%resV(i-1,j,k)
-               drop%fs%W(i-1,j,k)=       drop%resW(i-1,j,k)
+               drop%fs%U(i  ,j,k)=drop%resU(i  ,j,k)*sum(drop%fs%itpr_x(:,i  ,j,k)*drop%cfg%VF(i-1:i,    j,    k))
+               drop%fs%V(i-1,j,k)=drop%resV(i-1,j,k)*sum(drop%fs%itpr_y(:,i-1,j,k)*drop%cfg%VF(i-1  ,j-1:j,    k))
+               drop%fs%W(i-1,j,k)=drop%resW(i-1,j,k)*sum(drop%fs%itpr_z(:,i-1,j,k)*drop%cfg%VF(i-1  ,j    ,k-1:k))
             end do
-         end block apply_boundary_condition
+         end block coupling_a2d
       end do
       
    end subroutine simulation_run
@@ -127,7 +137,7 @@ contains
       call drop%final()
       
       ! Finalize HIT simulation
-      if (isInHITGrp) call gas%final()
+      call airflow%final()
       
    end subroutine simulation_final
    
