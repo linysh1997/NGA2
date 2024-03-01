@@ -29,7 +29,7 @@ contains
       
       ! Initialize air flow simulation
       call airflow%init()
-
+      print *, 'start'
       ! Initialize droplet atomization simulation
       call drop%init()
 

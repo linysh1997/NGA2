@@ -60,7 +60,7 @@ module flow_class
       real(WP), dimension(:,:,:,:), allocatable :: SR
       
       !> Problem definition
-      real(WP), dimension(3) :: center,radii
+      ! real(WP), dimension(3) :: center,radii
       
       !> Transfer model parameters
       real(WP) :: filmthickness_over_dx  =5.0e-1_WP
@@ -79,6 +79,7 @@ module flow_class
       procedure :: final                           !< Finalize nozzle simulation
    end type flow
 
+   real(WP), dimension(3) :: center,radii
 
 contains
    
@@ -106,6 +107,14 @@ contains
       if (i.eq.pg%imax+1) isIn=.true.
    end function xp_locator
    
+   !> Function that defines a level set function for a spherical droplet
+   function levelset_drop(xyz,t) result(G)
+      implicit none
+      real(WP), dimension(3),intent(in) :: xyz
+      real(WP), intent(in) :: t
+      real(WP) :: G
+      G=1.0_WP-sqrt(((xyz(1)-center(1))/radii(1))**2+((xyz(2)-center(2))/radii(2))**2+((xyz(3)-center(3))/radii(3))**2)
+   end function levelset_drop
    
    !> Initialization of problem solver
    subroutine init(this)
@@ -180,6 +189,8 @@ contains
          call param_read('Whole Domain Partition',partition,short='p')
          ! Create partitioned grid without walls
          this%cfg=config(grp=group,decomp=partition,grid=grid)
+         ! No walls
+         this%cfg%VF=1.0_WP   
       end block create_config
 
       ! Allocate work arrays for cfg
@@ -223,7 +234,7 @@ contains
          real(WP), dimension(3,8) :: cube_vertex
          real(WP), dimension(3) :: v_cent,a_cent
          real(WP) :: vol,area
-         ! integer, parameter :: amr_ref_lvl=4
+         integer, parameter :: amr_ref_lvl=4
          ! Create a VOF solver with LVIRA
          this%vf=vfs(cfg=this%cfg,reconstruction_method=lvira,name='VOF')
          ! Create a VOF solver with R2P
@@ -231,7 +242,12 @@ contains
          !vf%VFflot =1.0e-4_WP !< Enables flotsam removal
          !vf%VFsheet=1.0e-2_WP !< Enables sheet removal
          ! Create a VOF solver with ART
-         !vf=vfs(cfg=cfg,reconstruction_method=art,name='VOF')
+         ! vf=vfs(cfg=cfg,reconstruction_method=art,name='VOF')
+         ! Initialize to droplet
+         call param_read('Droplet center',center)
+         call param_read('Droplet radii',radii)
+         ! center=this%center
+         ! radii=this%radii
          do k=this%vf%cfg%kmino_,this%vf%cfg%kmaxo_
             do j=this%vf%cfg%jmino_,this%vf%cfg%jmaxo_
                do i=this%vf%cfg%imino_,this%vf%cfg%imaxo_
@@ -246,7 +262,7 @@ contains
                   end do
                   ! Call adaptive refinement code to get volume and barycenters recursively
                   vol=0.0_WP; area=0.0_WP; v_cent=0.0_WP; a_cent=0.0_WP
-                  ! call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_drop,0.0_WP,amr_ref_lvl)
+                  call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_drop,0.0_WP,amr_ref_lvl)
                   this%vf%VF(i,j,k)=vol/this%vf%cfg%vol(i,j,k)
                   if (this%vf%VF(i,j,k).ge.VFlo.and.this%vf%VF(i,j,k).le.VFhi) then
                      this%vf%Lbary(:,i,j,k)=v_cent
@@ -268,9 +284,11 @@ contains
          ! Handle restart - using VF data
          if (this%restarted) call this%df%pullvar(name='VF',var=this%vf%VF)
          ! Update the band
+         print *, '1'
          call this%vf%update_band()
          ! Perform interface reconstruction from VOF field
          call this%vf%build_interface()
+         print *, '2'
          ! Set interface planes at the boundaries
          call this%vf%set_full_bcond()
          ! Create discontinuous polygon mesh from IRL interface
@@ -389,6 +407,7 @@ contains
          ! Handle restarts
          if (this%restarted) call this%lp%read(filename=trim(this%lpt_file))
       end block create_lpt
+      print*,'lpt'
       
       
       ! Create an LES model
@@ -400,7 +419,7 @@ contains
             call this%df%pullvar(name='MM',var=this%sgs%MM)
          end if
       end block create_sgs
-      
+      print*,'sgs'
       
       ! Create surfmesh object for interface polygon output
       create_smesh: block
@@ -426,6 +445,7 @@ contains
             end do
          end do
       end block create_smesh
+      print *,'smesh'
       
       
       ! Create partmesh object for Lagrangian particle output

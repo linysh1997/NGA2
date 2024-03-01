@@ -1,23 +1,22 @@
 # Parallelization
-# Partition : 2 4 4
-Gas Phase Partition : 8 4 4
-Liquid Phase Partition : 2 2 2
+Whole Domain Partition : 1 1 1
+Droplet Domain Partition : 1 1 1
 
 # Mesh definition
-Gas Phase Lx :  10
-Gas Phase Ly :  5
-Gas Phase Lz :  5
-Gas Phase nx :  64
-Gas Phase ny :  32
-Gas Phase nz :  32
-Liquid Phase nx : 8
-Liquid Phase ny : 8
-Liquid Phase nz : 8
+Domain Lx :  10
+Domain Ly :  5
+Domain Lz :  5
+Domain nx :  64
+Domain ny :  32
+Domain nz :  32
+Droplet nx : 8
+Droplet ny : 4
+Droplet nz : 4
 
 # Case definition
-Gas velocity :   1
+Gas velocity :   0.0000000001 # 1
 Droplet radii :  0.5 0.5 0.5
-Droplet center : 1 0 0
+Droplet center : -0.5 0 0
 
 # Fluid properties
 Liquid dynamic viscosity :    1e-1

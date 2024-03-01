@@ -59,10 +59,6 @@ module droplet_class
       real(WP), dimension(:,:,:), allocatable :: Ui,Vi,Wi
       real(WP), dimension(:,:,:,:), allocatable :: SR
       
-      !> Problem definition
-      real(WP), dimension(3) :: center,radii
-      
-      !> Transfer model parameters
       real(WP) :: filmthickness_over_dx  =5.0e-1_WP
       real(WP) :: min_filmthickness      =1.0e-3_WP
       real(WP) :: diam_over_filmthickness=1.0e+1_WP
@@ -79,6 +75,8 @@ module droplet_class
       procedure :: final                           !< Finalize nozzle simulation
    end type droplet
 
+   !> Problem definition
+   real(WP), dimension(3) :: center,radii
 
 contains
    
@@ -113,7 +111,6 @@ contains
       real(WP), dimension(3),intent(in) :: xyz
       real(WP), intent(in) :: t
       real(WP) :: G
-      real(WP), dimension(3) :: center,radii
       G=1.0_WP-sqrt(((xyz(1)-center(1))/radii(1))**2+((xyz(2)-center(2))/radii(2))**2+((xyz(3)-center(3))/radii(3))**2)
    end function levelset_drop
    
@@ -170,20 +167,20 @@ contains
          integer, dimension(3) :: partition
          type(sgrid) :: grid
          integer :: i,j,k,nx,ny,nz
-         real(WP) :: Lx,Ly,Lz,xdrop
+         real(WP) :: Lx,Ly,Lz
          ! Read in grid definition
-         call param_read('Droplet Lx',Lx); call param_read('Droplet nx',nx); allocate(x(nx+1)); call param_read('X droplet',xdrop)
-         call param_read('Droplet Ly',Ly); call param_read('Droplet ny',ny); allocate(y(ny+1))
-         call param_read('Droplet Lz',Lz); call param_read('Droplet nz',nz); allocate(z(nz+1))
+         call param_read('Droplet Lx',Lx,default=2.4_WP*radii(1)); call param_read('Droplet nx',nx); allocate(x(nx+1))
+         call param_read('Droplet Ly',Ly,default=2.4_WP*radii(2)); call param_read('Droplet ny',ny); allocate(y(ny+1))
+         call param_read('Droplet Lz',Lz,default=2.4_WP*radii(3)); call param_read('Droplet nz',nz); allocate(z(nz+1))
          ! Create simple rectilinear grid
          do i=1,nx+1
-            x(i)=real(i-1,WP)/real(nx,WP)*Lx-xdrop
+            x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.5_WP*Lx+center(1)
          end do
          do j=1,ny+1
-            y(j)=real(j-1,WP)/real(ny,WP)*Ly-0.5_WP*Ly
+            y(j)=real(j-1,WP)/real(ny,WP)*Ly-0.5_WP*Ly+center(2)
          end do
          do k=1,nz+1
-            z(k)=real(k-1,WP)/real(nz,WP)*Lz-0.5_WP*Lz
+            z(k)=real(k-1,WP)/real(nz,WP)*Lz-0.5_WP*Lz+center(3)
          end do
          ! General serial grid object
          grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='Droplet')
@@ -244,8 +241,8 @@ contains
          ! Create a VOF solver with ART
          !vf=vfs(cfg=cfg,reconstruction_method=art,name='VOF')
          ! Initialize to droplet
-         call param_read('Droplet center',this%center)
-         call param_read('Droplet radii',this%radii)
+         call param_read('Droplet center',center)
+         call param_read('Droplet radii',radii)
          do k=this%vf%cfg%kmino_,this%vf%cfg%kmaxo_
             do j=this%vf%cfg%jmino_,this%vf%cfg%jmaxo_
                do i=this%vf%cfg%imino_,this%vf%cfg%imaxo_
