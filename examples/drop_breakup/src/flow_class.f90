@@ -284,11 +284,9 @@ contains
          ! Handle restart - using VF data
          if (this%restarted) call this%df%pullvar(name='VF',var=this%vf%VF)
          ! Update the band
-         print *, '1'
          call this%vf%update_band()
          ! Perform interface reconstruction from VOF field
          call this%vf%build_interface()
-         print *, '2'
          ! Set interface planes at the boundaries
          call this%vf%set_full_bcond()
          ! Create discontinuous polygon mesh from IRL interface
@@ -407,7 +405,6 @@ contains
          ! Handle restarts
          if (this%restarted) call this%lp%read(filename=trim(this%lpt_file))
       end block create_lpt
-      print*,'lpt'
       
       
       ! Create an LES model
@@ -419,7 +416,7 @@ contains
             call this%df%pullvar(name='MM',var=this%sgs%MM)
          end if
       end block create_sgs
-      print*,'sgs'
+      
       
       ! Create surfmesh object for interface polygon output
       create_smesh: block
@@ -445,7 +442,6 @@ contains
             end do
          end do
       end block create_smesh
-      print *,'smesh'
       
       
       ! Create partmesh object for Lagrangian particle output

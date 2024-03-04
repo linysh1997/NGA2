@@ -1,6 +1,6 @@
 # Parallelization
-Whole Domain Partition : 1 1 1
-Droplet Domain Partition : 1 1 1
+Whole Domain Partition : 8 4 4
+Droplet Domain Partition : 4 2 2
 
 # Mesh definition
 Domain Lx :  10
@@ -9,6 +9,9 @@ Domain Lz :  5
 Domain nx :  64
 Domain ny :  32
 Domain nz :  32
+Droplet Lx : 1.2
+Droplet Ly : 1.2
+Droplet Lz : 1.2
 Droplet nx : 8
 Droplet ny : 4
 Droplet nz : 4
@@ -43,8 +46,9 @@ Implicit tolerance : 1e-6
 Implicit iteration : 100
 
 # Ensight ouput
-Ensight output period gas: 1
-Ensight output period liquid: 1
+# Ensight output period gas: 1
+# Ensight output period liquid: 1
+Ensight output period : 1
 
 # Restart and save
 Restart output period : 100

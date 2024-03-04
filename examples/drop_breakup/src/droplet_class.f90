@@ -121,6 +121,8 @@ contains
       implicit none
       class(droplet), intent(inout) :: this
       
+      call param_read('Droplet center',center)
+      call param_read('Droplet radii',radii)
       
       ! Handle restart/saves here
       restart_and_save: block
@@ -241,8 +243,6 @@ contains
          ! Create a VOF solver with ART
          !vf=vfs(cfg=cfg,reconstruction_method=art,name='VOF')
          ! Initialize to droplet
-         call param_read('Droplet center',center)
-         call param_read('Droplet radii',radii)
          do k=this%vf%cfg%kmino_,this%vf%cfg%kmaxo_
             do j=this%vf%cfg%jmino_,this%vf%cfg%jmaxo_
                do i=this%vf%cfg%imino_,this%vf%cfg%imaxo_
