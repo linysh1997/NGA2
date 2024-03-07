@@ -457,7 +457,7 @@ contains
       ! Add Ensight output
       create_ensight: block
          ! Create Ensight output from cfg
-         this%ens_out=ensight(this%cfg,'drop_breakup')
+         this%ens_out=ensight(this%cfg,'drop')
          ! Create event for Ensight output
          this%ens_evt=event(this%time,'Ensight output')
          call param_read('Ensight output period',this%ens_evt%tper)
