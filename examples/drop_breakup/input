@@ -1,23 +1,23 @@
 # Parallelization
-Whole Domain Partition : 8 4 4
-Droplet Domain Partition : 8 4 4
+Whole Domain Partition : 1 1 1 
+Droplet Domain Partition : 1 1 1
 
 # Mesh definition
 Domain Lx :  10
 Domain Ly :  5
 Domain Lz :  5
-Domain nx :  32
-Domain ny :  16
-Domain nz :  16
+Domain nx :  16
+Domain ny :  8
+Domain nz :  8
 Droplet Lx : 1.2
 Droplet Ly : 1.2
 Droplet Lz : 1.2
-Droplet nx : 8
-Droplet ny : 8
-Droplet nz : 8
+Droplet nx : 4
+Droplet ny : 4
+Droplet nz : 4
 
 # Case definition
-Gas velocity :   0.0000000001 # 1
+Gas velocity :   0.1 # 1
 Droplet radii :  0.5 0.5 0.5
 Droplet center : -0.5 0 0
 

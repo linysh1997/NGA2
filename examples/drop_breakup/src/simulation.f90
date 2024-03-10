@@ -9,7 +9,6 @@ module simulation
    
    !> Flow simulation
    type(flow) :: airflow
-   logical :: isInHITGrp
    
    !> Droplet atomization simulation
    type(droplet) :: drop
@@ -29,7 +28,6 @@ contains
       
       ! Initialize air flow simulation
       call airflow%init()
-      print *, 'start'
       ! Initialize droplet atomization simulation
       call drop%init()
 
@@ -59,16 +57,16 @@ contains
       implicit none
       
       ! Atomization drives overall time integration
-      do while (.not.drop%time%done())
+      do while (.not.airflow%time%done())
          ! Advance atomization simulation
-         call drop%step()
+          call airflow%step()
          ! Advance airflow simulation until it's caught up
-         do while (airflow%time%t.le.drop%time%t)
-            call airflow%step()
+         do while (drop%time%t.le.airflow%time%t)
+            call drop%step()
          end do
          
          ! Finish transfer
-         ! Handle coupling between injector and atomization
+         ! Handle coupling between air flow and droplet
          coupling_a2d: block
             use tpns_class, only: bcond
             integer :: n,i,j,k
