@@ -236,7 +236,7 @@ contains
       
       ! Set the name for the solver
       if (present(name)) self%name=trim(adjustl(name))
-      
+      if (cfg%no.eq.0) print *, cfg%no
       ! Check that we have at least 3 overlap cells - we can push that to 2 with limited work!
       if (cfg%no.lt.3) call die('[vfs constructor] The config requires at least 3 overlap cells')
       

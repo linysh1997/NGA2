@@ -17,6 +17,7 @@ module flow_class
    use event_class,       only: event
    use datafile_class,    only: datafile
    use monitor_class,     only: monitor
+   use mpi_f08
    implicit none
    private
 
@@ -27,6 +28,8 @@ module flow_class
 
       !> Config
       type(config) :: cfg
+      type(MPI_Group) :: grp
+      logical :: isInGrp
    
       !> Two-phase incompressible flow solver, VF solver with CCL, and corresponding time tracker and sgs model
       type(tpns),        public :: fs
@@ -163,34 +166,42 @@ contains
       create_config: block
          use sgrid_class, only: cartesian,sgrid
          use param,       only: param_read
-         use parallel,    only: group
+         use parallel, only: comm,group,nproc,rank
+         use mpi_f08,  only: MPI_Group,MPI_Group_range_incl
+         integer, dimension(3,1) :: grange
+         integer :: ierr
          real(WP), dimension(:), allocatable :: x,y,z
          integer, dimension(3) :: partition
          type(sgrid) :: grid
          integer :: i,j,k,nx,ny,nz
          real(WP) :: Lx,Ly,Lz
-         ! Read in grid definition
-         call param_read('Domain Lx',Lx); call param_read('Domain nx',nx); allocate(x(nx+1))
-         call param_read('Domain Ly',Ly); call param_read('Domain ny',ny); allocate(y(ny+1))
-         call param_read('Domain Lz',Lz); call param_read('Domain nz',nz); allocate(z(nz+1))
-         ! Create simple rectilinear grid
-         do i=1,nx+1
-            x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.5_WP*Lx
-         end do
-         do j=1,ny+1
-            y(j)=real(j-1,WP)/real(ny,WP)*Ly-0.5_WP*Ly
-         end do
-         do k=1,nz+1
-            z(k)=real(k-1,WP)/real(nz,WP)*Lz-0.5_WP*Lz
-         end do
-         ! General serial grid object
-         grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='Flow')
          ! Read in partition
          call param_read('Whole Domain Partition',partition,short='p')
-         ! Create partitioned grid without walls
-         this%cfg=config(grp=group,decomp=partition,grid=grid)
-         ! No walls
-         this%cfg%VF=1.0_WP   
+         grange(:,1)=[nproc-product(partition),nproc-1,1]
+         call MPI_Group_range_incl(group,1,grange,this%grp,ierr)
+         this%isInGrp=.false.; if (rank.ge.nproc-product(partition)) this%isInGrp=.true.
+         if (this%isInGrp) then
+            ! Read in grid definition
+            call param_read('Domain Lx',Lx); call param_read('Domain nx',nx); allocate(x(nx+1))
+            call param_read('Domain Ly',Ly); call param_read('Domain ny',ny); allocate(y(ny+1))
+            call param_read('Domain Lz',Lz); call param_read('Domain nz',nz); allocate(z(nz+1))
+            ! Create simple rectilinear grid
+            do i=1,nx+1
+               x(i)=real(i-1,WP)/real(nx,WP)*Lx-0.5_WP*Lx
+            end do
+            do j=1,ny+1
+               y(j)=real(j-1,WP)/real(ny,WP)*Ly-0.5_WP*Ly
+            end do
+            do k=1,nz+1
+               z(k)=real(k-1,WP)/real(nz,WP)*Lz-0.5_WP*Lz
+            end do
+            ! General serial grid object
+            grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.true.,zper=.true.,name='Flow')
+            ! Create partitioned grid without walls
+            this%cfg=config(grp=this%grp,decomp=partition,grid=grid)
+            ! No walls
+            this%cfg%VF=1.0_WP   
+         end if
       end block create_config
 
       ! Allocate work arrays for cfg
@@ -262,7 +273,7 @@ contains
                   end do
                   ! Call adaptive refinement code to get volume and barycenters recursively
                   vol=0.0_WP; area=0.0_WP; v_cent=0.0_WP; a_cent=0.0_WP
-                  call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_drop,0.0_WP,amr_ref_lvl)
+                  ! call cube_refine_vol(cube_vertex,vol,area,v_cent,a_cent,levelset_drop,0.0_WP,amr_ref_lvl)
                   this%vf%VF(i,j,k)=vol/this%vf%cfg%vol(i,j,k)
                   if (this%vf%VF(i,j,k).ge.VFlo.and.this%vf%VF(i,j,k).le.VFhi) then
                      this%vf%Lbary(:,i,j,k)=v_cent

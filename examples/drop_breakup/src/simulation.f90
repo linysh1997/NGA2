@@ -38,15 +38,15 @@ contains
       ! Initialize couplers from airflow to drop
       create_coupler: block
          use parallel, only: group
-         xcpl=coupler(src_grp=group,dst_grp=group,name='airflow2drop')
-         ycpl=coupler(src_grp=group,dst_grp=group,name='airflow2drop')
-         zcpl=coupler(src_grp=group,dst_grp=group,name='airflow2drop')
-         call xcpl%set_src(airflow%cfg,'x')
-         call ycpl%set_src(airflow%cfg,'y')
-         call zcpl%set_src(airflow%cfg,'z')
-         call xcpl%set_dst(drop%cfg,'x'); call xcpl%initialize()
-         call ycpl%set_dst(drop%cfg,'y'); call ycpl%initialize()
-         call zcpl%set_dst(drop%cfg,'z'); call zcpl%initialize()
+         xcpl=coupler(src_grp=airflow%grp,dst_grp=drop%grp,name='airflow2drop')
+         ycpl=coupler(src_grp=airflow%grp,dst_grp=drop%grp,name='airflow2drop')
+         zcpl=coupler(src_grp=airflow%grp,dst_grp=drop%grp,name='airflow2drop')
+         if(airflow%isInGrp) call xcpl%set_src(airflow%cfg,'x')
+         if(airflow%isInGrp) call ycpl%set_src(airflow%cfg,'y')
+         if(airflow%isInGrp) call zcpl%set_src(airflow%cfg,'z')
+         if(drop%isInGrp) call xcpl%set_dst(drop%cfg,'x'); call xcpl%initialize()
+         if(drop%isInGrp) call ycpl%set_dst(drop%cfg,'y'); call ycpl%initialize()
+         if(drop%isInGrp) call zcpl%set_dst(drop%cfg,'z'); call zcpl%initialize()
       end block create_coupler
       
    end subroutine simulation_init
@@ -72,9 +72,9 @@ contains
             integer :: n,i,j,k
             type(bcond), pointer :: mybc
             ! Exchange data using cplx/y/z couplers
-            call xcpl%push(airflow%fs%U); call xcpl%transfer(); call xcpl%pull(drop%resU)
-            call ycpl%push(airflow%fs%V); call ycpl%transfer(); call ycpl%pull(drop%resV)
-            call zcpl%push(airflow%fs%W); call zcpl%transfer(); call zcpl%pull(drop%resW)
+            if(airflow%isInGrp) call xcpl%push(airflow%fs%U); call xcpl%transfer(); if(drop%isInGrp) call xcpl%pull(drop%resU)
+            if(airflow%isInGrp) call ycpl%push(airflow%fs%V); call ycpl%transfer(); if(drop%isInGrp) call ycpl%pull(drop%resV)
+            if(airflow%isInGrp) call zcpl%push(airflow%fs%W); call zcpl%transfer(); if(drop%isInGrp) call zcpl%pull(drop%resW)
             ! Apply time-varying Dirichlet conditions
             call drop%fs%get_bcond('inflow',mybc)
             do n=1,mybc%itr%no_
