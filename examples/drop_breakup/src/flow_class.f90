@@ -28,8 +28,6 @@ module flow_class
 
       !> Config
       type(config) :: cfg
-      ! type(MPI_Group) :: grp
-      ! logical :: isInGrp
    
       !> Two-phase incompressible flow solver, VF solver with CCL, and corresponding time tracker and sgs model
       type(tpns),        public :: fs
@@ -61,9 +59,6 @@ module flow_class
       real(WP), dimension(:,:,:), allocatable :: resU,resV,resW
       real(WP), dimension(:,:,:), allocatable :: Ui,Vi,Wi
       real(WP), dimension(:,:,:,:), allocatable :: SR
-      
-      !> Problem definition
-      ! real(WP), dimension(3) :: center,radii
       
       !> Transfer model parameters
       ! real(WP) :: filmthickness_over_dx  =5.0e-1_WP
@@ -168,8 +163,6 @@ contains
          use sgrid_class, only: cartesian,sgrid
          use param,       only: param_read
          use parallel, only: comm,group,nproc,rank
-         ! use mpi_f08,  only: MPI_Group,MPI_Group_range_incl
-         ! integer, dimension(3,1) :: grange
          integer :: ierr
          real(WP), dimension(:), allocatable :: x,y,z
          integer, dimension(3) :: partition
@@ -178,9 +171,6 @@ contains
          real(WP) :: Lx,Ly,Lz
          ! Read in partition
          call param_read('Whole Domain Partition',partition)
-         ! grange(:,1)=[0,product(partition)-1,1]
-         ! call MPI_Group_range_incl(group,1,grange,this%grp,ierr)
-         ! this%isInGrp=.false.; if (rank.le.product(partition)-1) this%isInGrp=.true.
          if (isInGrp) then
             ! Read in grid definition
             call param_read('Domain Lx',Lx); call param_read('Domain nx',nx); allocate(x(nx+1))
@@ -240,7 +230,6 @@ contains
       ! Initialize our VOF solver and field
       create_and_initialize_vof: block
          use mms_geom,  only: cube_refine_vol
-         ! use vfs_class, only: VFlo,VFhi,lvira,r2p,art,swartz
          use vfs_class, only: VFlo,VFhi,lvira,r2p,swartz
          integer :: i,j,k,si,sj,sk,n
          real(WP), dimension(3,8) :: cube_vertex
@@ -255,11 +244,6 @@ contains
          !vf%VFsheet=1.0e-2_WP !< Enables sheet removal
          ! Create a VOF solver with ART
          ! vf=vfs(cfg=cfg,reconstruction_method=art,name='VOF')
-         ! Initialize to droplet
-         ! call param_read('Droplet center',center)
-         ! call param_read('Droplet radii',radii)
-         ! center=this%center
-         ! radii=this%radii
          do k=this%vf%cfg%kmino_,this%vf%cfg%kmaxo_
             do j=this%vf%cfg%jmino_,this%vf%cfg%jmaxo_
                do i=this%vf%cfg%imino_,this%vf%cfg%imaxo_
@@ -317,7 +301,6 @@ contains
       ! Create a two-phase flow solver with bconds
       create_solver: block
          use tpns_class, only: dirichlet,clipped_neumann,neumann
-         ! use ils_class,  only: pcg_amg,gmres,gmres_amg
          use hypre_str_class
          use mathtools,       only: Pi
          ! Create a two-phase flow solver
@@ -336,20 +319,15 @@ contains
          ! Configure pressure solver
          this%ps=hypre_str(cfg=this%cfg,name='Pressure',method=pcg_pfmg2,nst=7)
          this%ps%maxlevel=10
-         ! call param_read('Pressure iteration',fs%psolv%maxit)
-         ! call param_read('Pressure tolerance',fs%psolv%rcvg)
          call param_read('Pressure iteration',this%ps%maxit)
          call param_read('Pressure tolerance',this%ps%rcvg)
          ! Configure implicit velocity solver
-         ! call param_read('Implicit iteration',fs%implicit%maxit)
-         ! call param_read('Implicit tolerance',fs%implicit%rcvg)
          this%vs=ddadi(cfg=this%cfg,name='Velocity',nst=7)
          ! Setup the solver
          call this%fs%setup(pressure_solver=this%ps,implicit_solver=this%vs)
          ! Calculate cell-centered velocities and divergence
 		   call this%fs%interp_vel(this%Ui,this%Vi,this%Wi)
 		   call this%fs%get_div()
-         ! call fs%setup(pressure_solver=gmres_amg,implicit_solver=gmres_amg)
       end block create_solver
       
       

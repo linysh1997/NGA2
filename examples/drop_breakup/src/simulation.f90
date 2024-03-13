@@ -11,7 +11,7 @@ module simulation
    type(flow) :: airflow
    logical :: isInFlowGrp
    
-   !> Droplet atomization simulation
+   !> Droplet simulation
    type(droplet) :: drop
    logical :: isInDropGrp
    
@@ -33,7 +33,6 @@ contains
 
       create_flow_group: block
          use parallel, only: group,comm,nproc,rank
-         ! use mpi_f08,  only: MPI_Group_incl
          integer :: ierr
          integer, dimension(3,1) :: grange
          integer, dimension(3) :: partition
@@ -46,7 +45,6 @@ contains
 
       create_drop_group: block
          use parallel, only: group,comm,nproc,rank
-         ! use mpi_f08,  only: MPI_Group_incl
          integer :: ierr
          integer, dimension(3,1) :: grange
          integer, dimension(3) :: partition
@@ -57,13 +55,13 @@ contains
          isInDropGrp=.false.; if (rank.ge.nproc-product(partition)) isInDropGrp=.true.
       end block create_drop_group
 
-      ! Initialize air flow simulation
+      ! Initialize airflow simulation
       if (isInFlowGrp) call airflow%init(flow_group,isInFlowGrp)
-      ! Initialize droplet atomization simulation
+      ! Initialize droplet simulation
       if (isInDropGrp) call drop%init(drop_group,isInDropGrp)
 
       ! If restarting, the domains could be out of sync, so resync
-      ! time by forcing airflow to be at same time as droplet atomization
+      ! time by forcing airflow to be at same time as droplet
       airflow%time%t=drop%time%t
       
       ! Initialize couplers from airflow to drop
@@ -96,7 +94,7 @@ contains
       ! Airflow drives overall time integration
       if (isInFlowGrp) then
          do while (.not.airflow%time%done())
-            ! Advance atomization simulation
+            ! Advance airflow simulation
             call airflow%step()
             ! Advance droplet simulation until it's caught up
             if (isInDropGrp) then
