@@ -17,7 +17,7 @@ module droplet_class
    use event_class,       only: event
    use datafile_class,    only: datafile
    use monitor_class,     only: monitor
-   use mpi_f08
+   use mpi_f08,           only: MPI_Group,MPI_Group_range_incl
    implicit none
    private
 
@@ -28,8 +28,8 @@ module droplet_class
 
       !> Config
       type(config) :: cfg
-      type(MPI_Group) :: grp
-      logical :: isInGrp
+      ! type(MPI_Group) :: grp
+      ! logical :: isInGrp
    
       !> Two-phase incompressible flow solver, VF solver with CCL, and corresponding time tracker and sgs model
       type(tpns),        public :: fs
@@ -55,18 +55,18 @@ module droplet_class
       type(event)    :: ens_evt
       
       !> Simulation monitor file
-      type(monitor) :: mfile,cflfile,sprayfile
+      type(monitor) :: mfile,cflfile ! ,sprayfile
       
       !> Private work arrays
       real(WP), dimension(:,:,:), allocatable :: resU,resV,resW
       real(WP), dimension(:,:,:), allocatable :: Ui,Vi,Wi
       real(WP), dimension(:,:,:,:), allocatable :: SR
       
-      real(WP) :: filmthickness_over_dx  =5.0e-1_WP
-      real(WP) :: min_filmthickness      =1.0e-3_WP
-      real(WP) :: diam_over_filmthickness=1.0e+1_WP
-      real(WP) :: max_eccentricity       =5.0e-1_WP
-      real(WP) :: d_threshold            =1.0e-1_WP
+      ! real(WP) :: filmthickness_over_dx  =5.0e-1_WP
+      ! real(WP) :: min_filmthickness      =1.0e-3_WP
+      ! real(WP) :: diam_over_filmthickness=1.0e+1_WP
+      ! real(WP) :: max_eccentricity       =5.0e-1_WP
+      ! real(WP) :: d_threshold            =1.0e-1_WP
       
       !> SGS surface tension model
       ! real(WP), dimension(:,:,:), allocatable :: sgsSTx,sgsSTy,sgsSTz
@@ -167,11 +167,13 @@ contains
    
    
    !> Initialization of problem solver
-   subroutine init(this)
+   subroutine init(this,grp,isInGrp)
       use param, only: param_read
       implicit none
       class(droplet), intent(inout) :: this
-      
+      type(MPI_Group), intent(in) :: grp
+      logical, intent(in) :: isInGrp
+
       call param_read('Droplet center',center)
       call param_read('Droplet radii',radii)
       
@@ -216,8 +218,8 @@ contains
          use sgrid_class, only: cartesian,sgrid
          use param,       only: param_read
          use parallel, only: comm,group,nproc,rank
-         use mpi_f08,  only: MPI_Group,MPI_Group_range_incl
-         integer, dimension(3,1) :: grange
+         ! use mpi_f08,  only: MPI_Group,MPI_Group_range_incl
+         ! integer, dimension(3,1) :: grange
          integer :: ierr
          real(WP), dimension(:), allocatable :: x,y,z
          integer, dimension(3) :: partition
@@ -225,11 +227,11 @@ contains
          integer :: i,j,k,nx,ny,nz
          real(WP) :: Lx,Ly,Lz
          ! Read in partition
-         call param_read('Droplet Domain Partition',partition,short='p')
-         grange(:,1)=[0,product(partition)-1,1]
-         call MPI_Group_range_incl(group,1,grange,this%grp,ierr)
-         this%isInGrp=.false.; if (rank.le.product(partition)-1) this%isInGrp=.true.
-         if (this%isInGrp) then
+         call param_read('Droplet Domain Partition',partition)
+         ! grange(:,1)=[nproc-product(partition),nproc-1,1]
+         ! call MPI_Group_range_incl(group,1,grange,this%grp,ierr)
+         ! this%isInGrp=.false.; if (rank.ge.nproc-product(partition)) this%isInGrp=.true.
+         if (isInGrp) then
             ! Read in grid definition
             call param_read('Droplet Lx',Lx,default=2.4_WP*radii(1)); call param_read('Droplet nx',nx); allocate(x(nx+1))
             call param_read('Droplet Ly',Ly,default=2.4_WP*radii(2)); call param_read('Droplet ny',ny); allocate(y(ny+1))
@@ -247,7 +249,7 @@ contains
             ! General serial grid object
             grid=sgrid(coord=cartesian,no=3,x=x,y=y,z=z,xper=.false.,yper=.false.,zper=.false.,name='Droplet')
             ! Create partitioned grid without walls
-            this%cfg=config(grp=this%grp,decomp=partition,grid=grid)
+            this%cfg=config(grp=grp,decomp=partition,grid=grid)
             ! No walls
             this%cfg%VF=1.0_WP   
          end if
@@ -405,7 +407,7 @@ contains
       initialize_velocity: block
          use mathtools,  only: pi
          use tpns_class, only: bcond
-         type(bcond), pointer :: mybc
+         type(bcond), pointer :: mybc_drop
          integer  :: n,i,j,k
          real(WP) :: Uin
          ! Zero initial field
@@ -422,9 +424,9 @@ contains
          end if
          ! Apply Dirichlet at inflow
          call param_read('Gas velocity',Uin)
-         call this%fs%get_bcond('inflow',mybc)
-         do n=1,mybc%itr%no_
-            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+         call this%fs%get_bcond('inflow',mybc_drop)
+         do n=1,mybc_drop%itr%no_
+            i=mybc_drop%itr%map(1,n); j=mybc_drop%itr%map(2,n); k=mybc_drop%itr%map(3,n)
             this%fs%U(i,j,k)=Uin
          end do
          ! Apply all other boundary conditions
@@ -547,7 +549,7 @@ contains
          call this%vf%get_max()
          ! call this%lp%get_max()
          ! Create simulation monitor
-         this%mfile=monitor(amroot=this%fs%cfg%amRoot,name='simulation')
+         this%mfile=monitor(amroot=this%fs%cfg%amRoot,name='simulation_drop')
          call this%mfile%add_column(this%time%n,'Timestep number')
          call this%mfile%add_column(this%time%t,'Time')
          call this%mfile%add_column(this%time%dt,'Timestep size')
@@ -564,7 +566,7 @@ contains
          call this%mfile%add_column(this%fs%psolv%rerr,'Pressure error')
          call this%mfile%write()
          ! Create CFL monitor
-         this%cflfile=monitor(amroot=this%fs%cfg%amRoot,name='cfl')
+         this%cflfile=monitor(amroot=this%fs%cfg%amRoot,name='cfl_drop')
          call this%cflfile%add_column(this%time%n,'Timestep number')
          call this%cflfile%add_column(this%time%t,'Time')
          call this%cflfile%add_column(this%fs%CFLc_x,'Convective xCFL')
@@ -606,8 +608,7 @@ contains
       class(droplet), intent(inout) :: this
       
       ! Perform time integration - the second solver is the main driver here
-      do while (.not.this%time%done())
-         
+      ! do while (.not.this%time%done())
          ! Increment time
          call this%fs%get_cfl(this%time%dt,this%time%cfl)
          call this%time%adjust_dt()
@@ -815,7 +816,7 @@ contains
             end block save_restart
          end if
          
-      end do
+      ! end do
       
    end subroutine step
    
