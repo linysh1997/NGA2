@@ -98,29 +98,29 @@ contains
             call airflow%step()
             ! Advance droplet simulation until it's caught up
             if (isInDropGrp) then
-               do while (drop%time%t.le.airflow%time%t)
+               do while (drop%time%t.lt.airflow%time%t)
                   call drop%step()
                end do
             end if  
             
             ! Finish transfer
-            ! Handle coupling between air flow and droplet
+            ! Handle coupling between airflow and droplet
             coupling_a2d: block
                use tpns_class, only: bcond
                integer :: n,i,j,k
-               type(bcond), pointer :: mybc_flow
+               ! type(bcond), pointer :: mybc
                ! Exchange data using cplx/y/z couplers
                if(isInFlowGrp) call xcpl%push(airflow%fs%U); call xcpl%transfer(); if(isInDropGrp) call xcpl%pull(drop%resU)
                if(isInFlowGrp) call ycpl%push(airflow%fs%V); call ycpl%transfer(); if(isInDropGrp) call ycpl%pull(drop%resV)
                if(isInFlowGrp) call zcpl%push(airflow%fs%W); call zcpl%transfer(); if(isInDropGrp) call zcpl%pull(drop%resW)
                ! Apply time-varying Dirichlet conditions
-               call airflow%fs%get_bcond('inflow',mybc_flow)
-               do n=1,mybc_flow%itr%no_
-                  i=mybc_flow%itr%map(1,n); j=mybc_flow%itr%map(2,n); k=mybc_flow%itr%map(3,n)
-                  airflow%fs%U(i  ,j,k)=airflow%resU(i  ,j,k)*sum(airflow%fs%itpr_x(:,i  ,j,k)*airflow%cfg%VF(i-1:i,    j,    k))
-                  airflow%fs%V(i-1,j,k)=airflow%resV(i-1,j,k)*sum(airflow%fs%itpr_y(:,i-1,j,k)*airflow%cfg%VF(i-1  ,j-1:j,    k))
-                  airflow%fs%W(i-1,j,k)=airflow%resW(i-1,j,k)*sum(airflow%fs%itpr_z(:,i-1,j,k)*airflow%cfg%VF(i-1  ,j    ,k-1:k))
-               end do
+               ! call airflow%fs%get_bcond('inflow',mybc)
+               ! do n=1,mybc%itr%no_
+               !    i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+               !    airflow%fs%U(i  ,j,k)=airflow%resU(i  ,j,k)*sum(airflow%fs%itpr_x(:,i  ,j,k)*airflow%cfg%VF(i-1:i,    j,    k))
+               !    airflow%fs%V(i-1,j,k)=airflow%resV(i-1,j,k)*sum(airflow%fs%itpr_y(:,i-1,j,k)*airflow%cfg%VF(i-1  ,j-1:j,    k))
+               !    airflow%fs%W(i-1,j,k)=airflow%resW(i-1,j,k)*sum(airflow%fs%itpr_z(:,i-1,j,k)*airflow%cfg%VF(i-1  ,j    ,k-1:k))
+               ! end do
             end block coupling_a2d
          end do
    end if

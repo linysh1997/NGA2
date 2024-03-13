@@ -335,7 +335,7 @@ contains
       initialize_velocity: block
          use mathtools,  only: pi
          use tpns_class, only: bcond
-         type(bcond), pointer :: mybc_flow
+         type(bcond), pointer :: mybc
          integer  :: n,i,j,k
          real(WP) :: Uin
          ! Zero initial field
@@ -352,9 +352,9 @@ contains
          end if
          ! Apply Dirichlet at inflow
          call param_read('Gas velocity',Uin)
-         call this%fs%get_bcond('inflow',mybc_flow)
-         do n=1,mybc_flow%itr%no_
-            i=mybc_flow%itr%map(1,n); j=mybc_flow%itr%map(2,n); k=mybc_flow%itr%map(3,n)
+         call this%fs%get_bcond('inflow',mybc)
+         do n=1,mybc%itr%no_
+            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
             this%fs%U(i,j,k)=Uin
          end do
          ! Apply all other boundary conditions
@@ -544,7 +544,7 @@ contains
          call this%time%increment()
          
          ! Advance our spray
-         this%resU=this%fs%rho_g; this%resV=this%fs%visc_g
+         ! this%resU=this%fs%rho_g; this%resV=this%fs%visc_g
          ! call this%lp%advance(dt=this%time%dt,U=this%fs%U,V=this%fs%V,W=this%fs%W,rho=this%resU,visc=this%resV)
          
          ! Remember old VOF

@@ -368,12 +368,12 @@ contains
          ! Read in surface tension coefficient
          call param_read('Surface tension coefficient',this%fs%sigma)
          ! Define boundary conditions: gas inflow on the left and outflow on the right
-         call this%fs%add_bcond(name='inflow' ,type=neumann,face='x',dir=-1,canCorrect=.false.,locator=xm_locator)
-         call this%fs%add_bcond(name='outflow',type=neumann,face='x',dir=+1,canCorrect=.true. ,locator=xp_locator)
-         call this%fs%add_bcond(name='surfflow',type=slip,face='y',dir=-1,canCorrect=.false.,locator=ym_locator)
-         call this%fs%add_bcond(name='surfflow',type=slip,face='y',dir=+1,canCorrect=.false. ,locator=yp_locator)
-         call this%fs%add_bcond(name='surfflow',type=slip,face='z',dir=-1,canCorrect=.false.,locator=zm_locator)
-         call this%fs%add_bcond(name='surfflow',type=slip,face='z',dir=+1,canCorrect=.false. ,locator=zp_locator)
+         call this%fs%add_bcond(name='inflow'  ,type=dirichlet ,face='x',dir=-1,canCorrect=.false.,locator=xm_locator)
+         call this%fs%add_bcond(name='outflow' ,type=neumann   ,face='x',dir=+1,canCorrect=.false. ,locator=xp_locator)
+         call this%fs%add_bcond(name='surfflow1',type=dirichlet,face='y',dir=-1,canCorrect=.false.,locator=ym_locator)
+         call this%fs%add_bcond(name='surfflow2',type=dirichlet,face='y',dir=+1,canCorrect=.false.,locator=yp_locator)
+         call this%fs%add_bcond(name='surfflow3',type=dirichlet,face='z',dir=-1,canCorrect=.false.,locator=zm_locator)
+         call this%fs%add_bcond(name='surfflow4',type=dirichlet,face='z',dir=+1,canCorrect=.false.,locator=zp_locator)
          ! Configure pressure solver
          this%ps=hypre_str(cfg=this%cfg,name='Pressure',method=pcg_pfmg2,nst=7)
          this%ps%maxlevel=10
@@ -393,7 +393,7 @@ contains
       initialize_velocity: block
          use mathtools,  only: pi
          use tpns_class, only: bcond
-         type(bcond), pointer :: mybc_drop
+         type(bcond), pointer :: mybc
          integer  :: n,i,j,k
          real(WP) :: Uin
          ! Zero initial field
@@ -410,9 +410,29 @@ contains
          end if
          ! Apply Dirichlet at inflow
          call param_read('Gas velocity',Uin)
-         call this%fs%get_bcond('inflow',mybc_drop)
-         do n=1,mybc_drop%itr%no_
-            i=mybc_drop%itr%map(1,n); j=mybc_drop%itr%map(2,n); k=mybc_drop%itr%map(3,n)
+         call this%fs%get_bcond('inflow',mybc)
+         do n=1,mybc%itr%no_
+            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+            this%fs%U(i,j,k)=Uin
+         end do
+         call this%fs%get_bcond('surfflow1',mybc)
+         do n=1,mybc%itr%no_
+            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+            this%fs%U(i,j,k)=Uin
+         end do
+         call this%fs%get_bcond('surfflow2',mybc)
+         do n=1,mybc%itr%no_
+            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+            this%fs%U(i,j,k)=Uin
+         end do
+         call this%fs%get_bcond('surfflow3',mybc)
+         do n=1,mybc%itr%no_
+            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+            this%fs%U(i,j,k)=Uin
+         end do
+         call this%fs%get_bcond('surfflow4',mybc)
+         do n=1,mybc%itr%no_
+            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
             this%fs%U(i,j,k)=Uin
          end do
          ! Apply all other boundary conditions
@@ -601,7 +621,7 @@ contains
          call this%time%increment()
          
          ! Advance our spray
-         this%resU=this%fs%rho_g; this%resV=this%fs%visc_g
+         ! this%resU=this%fs%rho_g; this%resV=this%fs%visc_g
          ! call this%lp%advance(dt=this%time%dt,U=this%fs%U,V=this%fs%V,W=this%fs%W,rho=this%resU,visc=this%resV)
          
          ! Remember old VOF
@@ -762,16 +782,16 @@ contains
          ! call this%sprayfile%write()
          
          ! After we're done clip all VOF at the exit area
-         vf_side_clipping: block
-            integer :: i,j,k
-            do k=this%fs%cfg%kmino_,this%fs%cfg%kmaxo_
-               do j=this%fs%cfg%jmino_,this%fs%cfg%jmaxo_
-                  do i=this%fs%cfg%imino_,this%fs%cfg%imaxo_
-                     if (i.ge.this%vf%cfg%imax-5) this%vf%VF(i,j,k)=0.0_WP
-                  end do
-               end do
-            end do
-         end block vf_side_clipping
+         ! vf_side_clipping: block
+         !    integer :: i,j,k
+         !    do k=this%fs%cfg%kmino_,this%fs%cfg%kmaxo_
+         !       do j=this%fs%cfg%jmino_,this%fs%cfg%jmaxo_
+         !          do i=this%fs%cfg%imino_,this%fs%cfg%imaxo_
+         !             if (i.ge.this%vf%cfg%imax-5) this%vf%VF(i,j,k)=0.0_WP
+         !          end do
+         !       end do
+         !    end do
+         ! end block vf_side_clipping
          
          ! Finally, see if it's time to save restart files
          if (this%save_evt%occurs()) then
