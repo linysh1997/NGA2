@@ -368,12 +368,12 @@ contains
          ! Read in surface tension coefficient
          call param_read('Surface tension coefficient',this%fs%sigma)
          ! Define boundary conditions: gas inflow on the left and outflow on the right
-         call this%fs%add_bcond(name='inflow'  ,type=dirichlet ,face='x',dir=-1,canCorrect=.false.,locator=xm_locator)
-         call this%fs%add_bcond(name='outflow' ,type=neumann   ,face='x',dir=+1,canCorrect=.false. ,locator=xp_locator)
-         call this%fs%add_bcond(name='surfflow1',type=dirichlet,face='y',dir=-1,canCorrect=.false.,locator=ym_locator)
-         call this%fs%add_bcond(name='surfflow2',type=dirichlet,face='y',dir=+1,canCorrect=.false.,locator=yp_locator)
-         call this%fs%add_bcond(name='surfflow3',type=dirichlet,face='z',dir=-1,canCorrect=.false.,locator=zm_locator)
-         call this%fs%add_bcond(name='surfflow4',type=dirichlet,face='z',dir=+1,canCorrect=.false.,locator=zp_locator)
+         call this%fs%add_bcond(name='inflow'   ,type=dirichlet,face='x',dir=-1,canCorrect=.false.,locator=xm_locator)
+         call this%fs%add_bcond(name='outflow'  ,type=neumann  ,face='x',dir=+1,canCorrect=.true. ,locator=xp_locator)
+         call this%fs%add_bcond(name='surfflow1',type=neumann  ,face='y',dir=-1,canCorrect=.true.,locator=ym_locator)
+         call this%fs%add_bcond(name='surfflow2',type=neumann  ,face='y',dir=+1,canCorrect=.true.,locator=yp_locator)
+         call this%fs%add_bcond(name='surfflow3',type=neumann  ,face='z',dir=-1,canCorrect=.true.,locator=zm_locator)
+         call this%fs%add_bcond(name='surfflow4',type=neumann  ,face='z',dir=+1,canCorrect=.true.,locator=zp_locator)
          ! Configure pressure solver
          this%ps=hypre_str(cfg=this%cfg,name='Pressure',method=pcg_pfmg2,nst=7)
          this%ps%maxlevel=10
@@ -413,28 +413,28 @@ contains
          call this%fs%get_bcond('inflow',mybc)
          do n=1,mybc%itr%no_
             i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-            this%fs%U(i,j,k)=Uin
+            this%fs%U(i,j,k)=0.0_WP
          end do
-         call this%fs%get_bcond('surfflow1',mybc)
-         do n=1,mybc%itr%no_
-            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-            this%fs%U(i,j,k)=Uin
-         end do
-         call this%fs%get_bcond('surfflow2',mybc)
-         do n=1,mybc%itr%no_
-            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-            this%fs%U(i,j,k)=Uin
-         end do
-         call this%fs%get_bcond('surfflow3',mybc)
-         do n=1,mybc%itr%no_
-            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-            this%fs%U(i,j,k)=Uin
-         end do
-         call this%fs%get_bcond('surfflow4',mybc)
-         do n=1,mybc%itr%no_
-            i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-            this%fs%U(i,j,k)=Uin
-         end do
+         ! call this%fs%get_bcond('surfflow1',mybc)
+         ! do n=1,mybc%itr%no_
+         !    i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+         !    this%fs%U(i,j,k)=Uin
+         ! end do
+         ! call this%fs%get_bcond('surfflow2',mybc)
+         ! do n=1,mybc%itr%no_
+         !    i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+         !    this%fs%U(i,j,k)=Uin
+         ! end do
+         ! call this%fs%get_bcond('surfflow3',mybc)
+         ! do n=1,mybc%itr%no_
+         !    i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+         !    this%fs%U(i,j,k)=Uin
+         ! end do
+         ! call this%fs%get_bcond('surfflow4',mybc)
+         ! do n=1,mybc%itr%no_
+         !    i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+         !    this%fs%U(i,j,k)=Uin
+         ! end do
          ! Apply all other boundary conditions
          call this%fs%apply_bcond(this%time%t,this%time%dt)
          ! Compute MFR through all boundary conditions

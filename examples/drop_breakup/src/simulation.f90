@@ -108,19 +108,22 @@ contains
             coupling_a2d: block
                use tpns_class, only: bcond
                integer :: n,i,j,k
-               ! type(bcond), pointer :: mybc
+               type(bcond), pointer :: mybc
                ! Exchange data using cplx/y/z couplers
                if(isInFlowGrp) call xcpl%push(airflow%fs%U); call xcpl%transfer(); if(isInDropGrp) call xcpl%pull(drop%resU)
                if(isInFlowGrp) call ycpl%push(airflow%fs%V); call ycpl%transfer(); if(isInDropGrp) call ycpl%pull(drop%resV)
                if(isInFlowGrp) call zcpl%push(airflow%fs%W); call zcpl%transfer(); if(isInDropGrp) call zcpl%pull(drop%resW)
                ! Apply time-varying Dirichlet conditions
-               ! call airflow%fs%get_bcond('inflow',mybc)
-               ! do n=1,mybc%itr%no_
-               !    i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
-               !    airflow%fs%U(i  ,j,k)=airflow%resU(i  ,j,k)*sum(airflow%fs%itpr_x(:,i  ,j,k)*airflow%cfg%VF(i-1:i,    j,    k))
-               !    airflow%fs%V(i-1,j,k)=airflow%resV(i-1,j,k)*sum(airflow%fs%itpr_y(:,i-1,j,k)*airflow%cfg%VF(i-1  ,j-1:j,    k))
-               !    airflow%fs%W(i-1,j,k)=airflow%resW(i-1,j,k)*sum(airflow%fs%itpr_z(:,i-1,j,k)*airflow%cfg%VF(i-1  ,j    ,k-1:k))
-               ! end do
+               ! Update boundary conditions of droplet domain
+               if (isInDropGrp) then
+                  call drop%fs%get_bcond('inflow',mybc)
+                  do n=1,mybc%itr%no_
+                     i=mybc%itr%map(1,n); j=mybc%itr%map(2,n); k=mybc%itr%map(3,n)
+                     drop%fs%U(i  ,j,k)=drop%resU(i  ,j,k)*sum(drop%fs%itpr_x(:,i  ,j,k)*drop%cfg%VF(i-1:i,    j,    k))
+                     drop%fs%V(i-1,j,k)=drop%resV(i-1,j,k)*sum(drop%fs%itpr_y(:,i-1,j,k)*drop%cfg%VF(i-1  ,j-1:j,    k))
+                     drop%fs%W(i-1,j,k)=drop%resW(i-1,j,k)*sum(drop%fs%itpr_z(:,i-1,j,k)*drop%cfg%VF(i-1  ,j    ,k-1:k))
+                  end do
+              end if
             end block coupling_a2d
          end do
    end if
