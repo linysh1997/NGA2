@@ -370,10 +370,10 @@ contains
          ! Define boundary conditions: gas inflow on the left and outflow on the right
          call this%fs%add_bcond(name='inflow'   ,type=dirichlet,face='x',dir=-1,canCorrect=.false.,locator=xm_locator)
          call this%fs%add_bcond(name='outflow'  ,type=neumann  ,face='x',dir=+1,canCorrect=.true. ,locator=xp_locator)
-         call this%fs%add_bcond(name='surfflow1',type=neumann  ,face='y',dir=-1,canCorrect=.true.,locator=ym_locator)
-         call this%fs%add_bcond(name='surfflow2',type=neumann  ,face='y',dir=+1,canCorrect=.true.,locator=yp_locator)
-         call this%fs%add_bcond(name='surfflow3',type=neumann  ,face='z',dir=-1,canCorrect=.true.,locator=zm_locator)
-         call this%fs%add_bcond(name='surfflow4',type=neumann  ,face='z',dir=+1,canCorrect=.true.,locator=zp_locator)
+         call this%fs%add_bcond(name='surfflow1',type=neumann  ,face='y',dir=-1,canCorrect=.false.,locator=ym_locator)
+         call this%fs%add_bcond(name='surfflow2',type=neumann  ,face='y',dir=+1,canCorrect=.false.,locator=yp_locator)
+         call this%fs%add_bcond(name='surfflow3',type=neumann  ,face='z',dir=-1,canCorrect=.false.,locator=zm_locator)
+         call this%fs%add_bcond(name='surfflow4',type=neumann  ,face='z',dir=+1,canCorrect=.false.,locator=zp_locator)
          ! Configure pressure solver
          this%ps=hypre_str(cfg=this%cfg,name='Pressure',method=pcg_pfmg2,nst=7)
          this%ps%maxlevel=10
